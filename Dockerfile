@@ -1,4 +1,4 @@
-FROM java:8
+FROM openjdk:8-alpine
 
 MAINTAINER "Tom Paulus" <tom@whitestar.systems>
 
