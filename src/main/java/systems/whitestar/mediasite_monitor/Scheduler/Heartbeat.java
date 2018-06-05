@@ -1,6 +1,7 @@
 package systems.whitestar.mediasite_monitor.Scheduler;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
@@ -8,6 +9,7 @@ import lombok.extern.log4j.Log4j;
 import org.quartz.*;
 import systems.whitestar.mediasite_monitor.Agent;
 import systems.whitestar.mediasite_monitor.Models.AgentJob;
+import systems.whitestar.mediasite_monitor.Models.ClassTypeAdapter;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -29,6 +31,9 @@ public class Heartbeat implements Job {
     private static final String JOB_GROUP = "heartbeat";
     private static final String TRIGGER_NAME = "HeartbeatTrigger";
     private static final String JOB_NAME = "Heartbeat";
+
+    private static Gson gson = new GsonBuilder().registerTypeAdapter(Class.class, new ClassTypeAdapter()).create();
+
 
     /**
      * Schedule the Sync Job
@@ -75,7 +80,7 @@ public class Heartbeat implements Job {
         if (response.getStatus() == 204) {
             log.info("No jobs available for this agent, but check-in was acknowledged");
         } else if (response.getStatus() == 200) {
-            AgentJob job = new Gson().fromJson(response.getBody(), AgentJob.class);
+            AgentJob job = gson.fromJson(response.getBody(), AgentJob.class);
             log.info("Received job from Server");
             log.debug(job);
             return job;
@@ -98,9 +103,9 @@ public class Heartbeat implements Job {
 
         try {
             response = Unirest
-                    .post(String.format("%s/agent/job/%s", Agent.getAgent().getServerURL(), jobID))
+                    .post(String.format("%s/agent/queue/job/%s", Agent.getAgent().getServerURL(), jobID))
                     .header("Content-Type", "application/json")
-                    .body(new Gson().toJson(payload))
+                    .body(gson.toJson(payload))
                     .asString();
         } catch (UnirestException e) {
             log.warn("Could not push result to server - Check URL and config", e);
