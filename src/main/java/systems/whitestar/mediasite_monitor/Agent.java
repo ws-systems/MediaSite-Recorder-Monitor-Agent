@@ -1,10 +1,15 @@
 package systems.whitestar.mediasite_monitor;
 
+import com.google.gson.annotations.Expose;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.extern.log4j.Log4j;
+import org.quartz.SchedulerException;
 import systems.whitestar.mediasite_monitor.Models.AgentConfig;
+import systems.whitestar.mediasite_monitor.Scheduler.Heartbeat;
+import systems.whitestar.mediasite_monitor.Scheduler.Schedule;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -23,13 +28,22 @@ import java.util.concurrent.TimeUnit;
  */
 @Log4j
 @Builder
+@Getter
 @AllArgsConstructor
 @NoArgsConstructor
 public class Agent {
     private static final String ID_FILE_PATH = "/var/lib/ms-mon-agent/config.properties";
+    private static final int HEARTBEAT_RATE = 30;  // How often, in seconds, that the agent should check-in with the server
+    private static final int EXECUTION_DELAY = 60; // How often the agent thread should check if there are still jobs running
 
+    @Getter
+    private static Agent agent;
+    @Expose
     private String id;
+    @Expose
     private String name;
+    @Expose(serialize = false)
+    private boolean authorized;
     private String serverURL;
 
     public static void main(String[] args) {
@@ -44,7 +58,7 @@ public class Agent {
             saveAgentID(agentID);
         }
 
-        Agent agent = Agent.builder()
+        agent = Agent.builder()
                 .id(agentID)
                 .serverURL(serverURL)
                 .name(agentName)
@@ -52,6 +66,27 @@ public class Agent {
 
         log.debug("Starting Agent");
         agent.start();
+
+        try {
+            Schedule.getScheduler().start();
+        } catch (SchedulerException e) {
+            log.error("Could not start Scheduler", e);
+            throw new RuntimeException(e);
+        }
+
+
+        try {
+            do {
+                try {
+                    TimeUnit.SECONDS.sleep(EXECUTION_DELAY);
+                } catch (InterruptedException e) {
+                    log.warn("Agent Interrupted", e);
+                }
+            } while (Schedule.getScheduler().getTriggerGroupNames().size() > 0);
+        } catch (SchedulerException e) {
+            log.error("Problem getting active Job Triggers", e);
+            throw new RuntimeException(e);
+        }
     }
 
     private static String getAgentID() {
@@ -87,7 +122,7 @@ public class Agent {
         }
     }
 
-    void start() {
+    private void start() {
         log.info("Registering Agent");
         log.debug("Agent ID = " + this.id);
         log.debug("Agent Name = " + this.name);
@@ -95,22 +130,33 @@ public class Agent {
 
         boolean authorized;
         do {
-            authorized = Register.registerAgent(this.id);
-            try {
-                TimeUnit.SECONDS.sleep(Register.REGISTRATION_DELAY);
-            } catch (InterruptedException e) {
-                log.warn("Could not pause for Agent Registration Status Refresh", e);
+            authorized = Register.registerAgent();
+            if (!authorized) {
+                try {
+                    TimeUnit.SECONDS.sleep(Register.REGISTRATION_DELAY);
+                } catch (InterruptedException e) {
+                    log.warn("Could not pause for Agent Registration Status Refresh", e);
+                }
             }
         } while (!authorized);
 
 
         log.info("Getting Agent Configuration");
-        AgentConfig config = Register.getConfig(this.id);
+        AgentConfig config = Register.getConfig();
+        if (config == null) throw new RuntimeException("Config cannot be null");
 
-        log.info("Getting Recorder List");
-        // TODO Get Recorders
+        try {
+            Mediasite.init(config);
+        } catch (InstantiationException e) {
+            log.error("Could not init Mediasite API Connector", e);
+            throw new RuntimeException(e);
+        }
 
-        log.info("Starting Jobs");
-        // TODO Start Jobs
+        try {
+            Heartbeat.schedule(Schedule.getScheduler(), HEARTBEAT_RATE);
+        } catch (SchedulerException e) {
+            log.fatal("Could not schedule heartbeat job", e);
+            throw new RuntimeException(e);
+        }
     }
 }

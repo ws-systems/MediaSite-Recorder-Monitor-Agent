@@ -7,11 +7,10 @@ import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.extern.log4j.Log4j;
 import org.apache.http.conn.ConnectTimeoutException;
+import systems.whitestar.mediasite_monitor.Models.AgentConfig;
 import systems.whitestar.mediasite_monitor.Models.Recorder;
 import systems.whitestar.mediasite_monitor.Models.Status;
 
@@ -26,15 +25,33 @@ import java.util.List;
  * Created on 12/15/17.
  */
 @Log4j
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
 public class Mediasite {
     private static final String RECORDER_WEB_SERVICE_PORT = "8090";
+    @Getter
+    private static Mediasite instance = null;
     private String msPass;
     private String msUser;
     private String msAPIKey;
     private String msURL;
+
+    private Mediasite(String msPass, String msUser, String msAPIKey, String msURL) {
+        this.msPass = msPass;
+        this.msUser = msUser;
+        this.msAPIKey = msAPIKey;
+        this.msURL = msURL;
+    }
+
+    public static void init(@NonNull AgentConfig config) throws InstantiationException {
+        init(config.getApiPass(),
+                config.getApiUser(),
+                config.getApiKey(),
+                config.getUrl());
+    }
+
+    public static void init(String msPass, String msUser, String msAPIKey, String msURL) throws InstantiationException {
+        if (instance != null) throw new InstantiationException("Mediasite has already been initialized");
+        instance = new Mediasite(msPass, msUser, msAPIKey, msURL);
+    }
 
     public Recorder[] getRecorders() {
         final List<Recorder> recorderList = new ArrayList<>();

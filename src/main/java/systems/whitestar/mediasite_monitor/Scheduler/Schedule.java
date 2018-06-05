@@ -1,4 +1,4 @@
-package systems.whitestar.mediasite_monitor;
+package systems.whitestar.mediasite_monitor.Scheduler;
 
 import lombok.extern.log4j.Log4j;
 import org.quartz.Scheduler;
