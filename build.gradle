@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'systems.whitestar'
-version '1.0'
+version '2.1'
 
 apply plugin: 'java'
 
