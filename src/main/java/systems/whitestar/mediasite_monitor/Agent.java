@@ -47,8 +47,8 @@ public class Agent {
     private String serverURL;
 
     public static void main(String[] args) {
-        String serverURL = System.getenv("MS-MON-SERVER-URL");
-        String agentName = System.getenv("MS-MON-AGENT-NAME");
+        String serverURL = System.getenv("MS_MON_SERVER_URL");
+        String agentName = System.getenv("MS_MON_AGENT_NAME");
         String agentID = getAgentID();
 
         if (agentID == null || agentID.isEmpty()) {
